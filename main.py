@@ -8,9 +8,107 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont, QIcon
 from editor_window import EditorWindow
+from OpenGL.GL import glGetString
+import numpy as np
+from dataclasses import dataclass
+from typing import Dict, Tuple, List
 
 # Global variable to store project directory
 PROJECTS_DIR = os.path.expanduser("~/AeroProjects")
+
+@dataclass
+class FlowConditions:
+    """Class to store flow conditions"""
+    density: float  # Air density (kg/m³)
+    velocity: float  # Flow velocity (m/s)
+    temperature: float  # Temperature (°C)
+    viscosity: float  # Dynamic viscosity (kg/m·s)
+    angle_of_attack: float  # Angle of attack (degrees)
+
+@dataclass
+class AerodynamicForces:
+    """Class to store calculated forces"""
+    lift: float  # Lift force (N)
+    drag: float  # Drag force (N)
+    moment: float  # Pitching moment (N·m)
+    pressure_distribution: Dict[int, float]  # Pressure at each vertex
+    cp: float  # Pressure coefficient
+
+class AeroPhysicsEngine:
+    """Main class for aerodynamic calculations"""
+    
+    def __init__(self):
+        self.vertices = None
+        self.normals = None
+        self.faces = None
+        self.flow_conditions = None
+        
+    def set_mesh(self, vertices: np.ndarray, normals: np.ndarray, faces: np.ndarray):
+        """Set the mesh data for calculations"""
+        self.vertices = vertices
+        self.normals = normals
+        self.faces = faces
+        
+    def set_flow_conditions(self, conditions: FlowConditions):
+        """Set the flow conditions"""
+        self.flow_conditions = conditions
+        
+    def calculate_forces(self) -> AerodynamicForces:
+        """Calculate aerodynamic forces"""
+        if not all([self.vertices is not None, 
+                   self.normals is not None,
+                   self.flow_conditions is not None]):
+            raise ValueError("Mesh data or flow conditions not set")
+            
+        try:
+            # Calculate reference area
+            reference_area = self.calculate_reference_area()
+            
+            # Calculate dynamic pressure
+            q_inf = 0.5 * self.flow_conditions.density * self.flow_conditions.velocity ** 2
+            
+            # Simple force calculation based on angle of attack
+            alpha = np.radians(self.flow_conditions.angle_of_attack)
+            
+            # Basic lift and drag coefficients (simplified)
+            cl = 2 * np.pi * alpha  # Simplified thin airfoil theory
+            cd = 0.1 + 0.1 * alpha * alpha  # Simplified drag polar
+            
+            # Calculate forces
+            lift = q_inf * reference_area * cl
+            drag = q_inf * reference_area * cd
+            moment = -0.25 * lift  # Simplified moment calculation
+            
+            # Generate simplified pressure distribution
+            pressure_dist = {}
+            for i in range(len(self.vertices)):
+                # Simple pressure distribution based on height
+                y_pos = self.vertices[i][1]  # Y coordinate
+                cp = -2 * y_pos / reference_area
+                pressure_dist[i] = cp
+            
+            return AerodynamicForces(
+                lift=float(lift),
+                drag=float(drag),
+                moment=float(moment),
+                pressure_distribution=pressure_dist,
+                cp=float(cl)  # Using lift coefficient as pressure coefficient
+            )
+            
+        except Exception as e:
+            raise RuntimeError(f"Force calculation failed: {str(e)}")
+    
+    def calculate_reference_area(self) -> float:
+        """Calculate reference area for force coefficients"""
+        if self.vertices is None:
+            raise ValueError("Mesh data not set")
+            
+        # Project vertices onto XY plane for planform area
+        xy_vertices = self.vertices[:, :2]
+        # Calculate convex hull area as approximation
+        from scipy.spatial import ConvexHull
+        hull = ConvexHull(xy_vertices)
+        return hull.area
 
 class ProjectCard(QFrame):
     def __init__(self, project_name, project_path, last_opened, parent=None):
@@ -487,6 +585,24 @@ class MainWindow(QMainWindow):
     def show_project_wizard(self):
         wizard = ProjectWizard(self)
         wizard.exec()
+
+    def init_application(self):
+        # Initialize OpenGL first
+        self.init_opengl()
+        
+        # Only then load models
+        self.load_models()
+
+    def init_opengl(self):
+        # Make sure the OpenGL context is current
+        self.makeCurrent()
+        
+        # Initialize OpenGL
+        print(f"OpenGL Version: {glGetString(GL_VERSION).decode()}")
+        
+        # Check for required extensions
+        if not gl_info.have_extension('GL_ARB_vertex_buffer_object'):
+            raise RuntimeError("VBO extension not available")
 
 def main():
     app = QApplication(sys.argv)
