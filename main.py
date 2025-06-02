@@ -13,7 +13,7 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Tuple, List
 
-# Global variable to store project directory
+# Store stuff uhhh yes vewy cool
 PROJECTS_DIR = os.path.expanduser("~/AeroProjects")
 
 @dataclass
@@ -61,28 +61,28 @@ class AeroPhysicsEngine:
             raise ValueError("Mesh data or flow conditions not set")
             
         try:
-            # Calculate reference area
+            #reference area
             reference_area = self.calculate_reference_area()
             
-            # Calculate dynamic pressure
+            #pressure
             q_inf = 0.5 * self.flow_conditions.density * self.flow_conditions.velocity ** 2
             
-            # Simple force calculation based on angle of attack
+            #Force Calc based on angle of attack
             alpha = np.radians(self.flow_conditions.angle_of_attack)
             
-            # Basic lift and drag coefficients (simplified)
-            cl = 2 * np.pi * alpha  # Simplified thin airfoil theory
-            cd = 0.1 + 0.1 * alpha * alpha  # Simplified drag polar
+            #lift and drag coefficient
+            cl = 2 * np.pi * alpha  #thin airfoil theory
+            cd = 0.1 + 0.1 * alpha * alpha  #drag polar
             
             # Calculate forces
             lift = q_inf * reference_area * cl
             drag = q_inf * reference_area * cd
-            moment = -0.25 * lift  # Simplified moment calculation
+            moment = -0.25 * lift  #moment calc
             
-            # Generate simplified pressure distribution
+            #pressure distrubution
             pressure_dist = {}
             for i in range(len(self.vertices)):
-                # Simple pressure distribution based on height
+                #pressure distribution based on cordinate
                 y_pos = self.vertices[i][1]  # Y coordinate
                 cp = -2 * y_pos / reference_area
                 pressure_dist[i] = cp
